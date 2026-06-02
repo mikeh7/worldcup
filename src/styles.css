@@ -1,0 +1,313 @@
+:root {
+  --pitch-dark: #2e7d32;
+  --pitch-light: #388e3c;
+  --ink: #0a1a2f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #05140a;
+  font-family: "Arial Narrow", Arial, Helvetica, sans-serif;
+  user-select: none;
+}
+
+/* ---------- Stage / pitch ---------- */
+.stage {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.pitch-area {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pitch-dark) 0,
+    var(--pitch-dark) 8%,
+    var(--pitch-light) 8%,
+    var(--pitch-light) 16%
+  );
+}
+
+.pitch {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ---------- Players ---------- */
+.slot {
+  position: absolute;
+  width: clamp(64px, 7.5vw, 150px);
+  transform: translate(-50%, -50%);
+  z-index: 5;
+}
+
+.slot-active {
+  z-index: 8;
+  filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.7));
+}
+
+.player {
+  width: 100%;
+}
+
+.player svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 8px 6px rgba(0, 0, 0, 0.35));
+}
+
+.shirt-name {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.shirt-surname {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+.shirt-number {
+  font-size: 46px;
+  font-weight: 900;
+}
+
+/* Running: jogging legs + side-to-side sway */
+.player.is-running {
+  animation: run-side 0.5s ease-in-out infinite;
+}
+@keyframes run-side {
+  0% {
+    transform: translateX(-9%) rotate(-4deg);
+  }
+  50% {
+    transform: translateX(9%) rotate(4deg);
+  }
+  100% {
+    transform: translateX(-9%) rotate(-4deg);
+  }
+}
+.is-running .leg-l {
+  animation: step 0.26s infinite alternate;
+}
+.is-running .leg-r {
+  animation: step 0.26s infinite alternate-reverse;
+}
+@keyframes step {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-9px);
+  }
+}
+
+/* ---------- Scoreboard ---------- */
+.scoreboard {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  width: clamp(210px, 16vw, 320px);
+  background: rgba(7, 20, 12, 0.82);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  padding: 12px 16px;
+  color: #fff;
+  z-index: 40;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.scoreboard-title {
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 3px;
+  font-size: clamp(12px, 1.1vw, 18px);
+  opacity: 0.8;
+  margin-bottom: 8px;
+}
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 10px;
+  margin-top: 6px;
+}
+.score-llo {
+  /* Lloyds Bank brand green */
+  background: linear-gradient(90deg, #006a4d, #00543b);
+}
+.score-bos {
+  background: linear-gradient(90deg, #1a2a6c, #0d1538);
+}
+.score-team {
+  font-weight: 900;
+  font-size: clamp(16px, 1.5vw, 26px);
+  letter-spacing: 1px;
+}
+.score-value {
+  font-weight: 900;
+  font-size: clamp(22px, 2.4vw, 40px);
+  min-width: 1.6em;
+  text-align: right;
+}
+
+/* ---------- Name entry overlay ---------- */
+.name-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  z-index: 70;
+  pointer-events: none; /* keep the pitch visible/interactive behind the prompt */
+}
+.name-panel {
+  transform-origin: bottom center; /* scaled to ~60% via Framer, anchored to the bottom */
+  pointer-events: auto;
+  background: linear-gradient(160deg, #0d2a17, #06160d);
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: clamp(12px, 2vh, 22px) clamp(28px, 5vw, 70px);
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.name-input {
+  width: min(60vw, 520px);
+  text-align: center;
+  font-size: clamp(28px, 4vw, 64px);
+  font-weight: 900;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 3px solid #ffd700;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+}
+.name-input::placeholder {
+  color: #b9c2bd;
+  letter-spacing: 4px;
+}
+.name-hint {
+  margin-top: 8px;
+  opacity: 0.7;
+  font-size: clamp(13px, 1.3vw, 20px);
+  letter-spacing: 1px;
+}
+
+/* ---------- Ball ---------- */
+.ball {
+  position: fixed;
+  left: 50%;
+  top: 45%;
+  margin-left: -6vmin;
+  margin-top: -6vmin;
+  width: 12vmin;
+  height: 12vmin;
+  font-size: 12vmin;
+  line-height: 12vmin;
+  text-align: center;
+  z-index: 60;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* ---------- Banner ---------- */
+.banner-layer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8px;
+  z-index: 65;
+  pointer-events: none;
+}
+.banner-wrap {
+  text-align: center;
+  transform-origin: top center; /* scaled to 60% via Framer, anchored to the top */
+}
+.banner {
+  padding: 18px 56px;
+  border-radius: 18px;
+  color: #fff; /* white text on the team colour */
+  text-transform: uppercase;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+}
+.banner-welcome {
+  border: 3px solid rgba(255, 255, 255, 0.55);
+}
+.banner-winner {
+  border: 5px solid #ffd700;
+}
+.banner-main {
+  font-size: clamp(34px, 5vw, 84px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+}
+.banner-winner .banner-main {
+  font-size: clamp(48px, 7vw, 120px);
+  letter-spacing: 6px;
+}
+.banner-sub {
+  font-size: clamp(22px, 3vw, 46px);
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+/* ---------- Reset button ---------- */
+.reset-btn {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+  width: clamp(48px, 4vw, 66px);
+  height: clamp(48px, 4vw, 66px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(7, 20, 12, 0.82);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  cursor: pointer;
+  z-index: 45;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  transition: background 0.2s, transform 0.15s;
+}
+.reset-btn:hover {
+  background: #006a4d;
+}
+.reset-btn:active {
+  transform: scale(0.92);
+}
+.reset-btn svg {
+  width: 62%;
+  height: 62%;
+}
+.reset-btn:hover svg {
+  animation: reset-spin 1s linear infinite;
+}
+@keyframes reset-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
