@@ -29,9 +29,10 @@ browser's fullscreen) for a clean kiosk display.
 5. Once both teams are full (22 players), each new player randomly **replaces**
    an existing one (with the same ball animation).
 
-A crowd cheer (synthesised in-browser, no audio files needed) plays each time a
-player lands on the pitch — louder for winners. Audio unlocks on the first
-Enter press, per browser autoplay rules.
+A continuous football-crowd roar (a looped recording) plays like a live match,
+and a real vuvuzela fanfare blasts **only when a winner is added**. Audio unlocks
+on the first Enter press, per browser autoplay rules. Both samples are bundled
+under permissive licences — see [CREDITS.md](CREDITS.md).
 
 Game state persists to `localStorage`, so an accidental refresh won't wipe the
 party — the teams and scores are restored exactly. To start over, press the

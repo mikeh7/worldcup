@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import Pitch from "./components/Pitch";
 import Scoreboard from "./components/Scoreboard";
@@ -11,8 +11,8 @@ import { reducer, initialState } from "./game/reducer";
 import { createIncoming, Incoming } from "./game/engine";
 import { formationFor } from "./game/formation";
 import { GameState } from "./game/types";
-import { initAudio, playCheer } from "./game/audio";
-import { BALL_PEAK_MS, BALL_TOTAL_MS, RUN_MS, BANNER_MS } from "./game/timing";
+import { initAudio, playVuvuzelas } from "./game/audio";
+import { BALL_PEAK_MS, BALL_TOTAL_MS, RUN_MS, BANNER_MS, IDLE_MS } from "./game/timing";
 
 const STORAGE_KEY = "dream-team-state-v1";
 
@@ -37,6 +37,11 @@ export default function App() {
   const incomingRef = useRef<Incoming | null>(null);
   const ballKeyRef = useRef(0);
 
+  // During an idle window we re-run the runner animation on a random player.
+  const [idleRunningId, setIdleRunningId] = useState<string | null>(null);
+  const playersRef = useRef(state.players);
+  playersRef.current = state.players;
+
   // Persist the durable parts of the game (not the transient phase/reveal).
   useEffect(() => {
     const { players, scores, usedNumbers } = state;
@@ -49,9 +54,8 @@ export default function App() {
       const t1 = setTimeout(() => {
         if (incomingRef.current) {
           dispatch({ type: "COMMIT", incoming: incomingRef.current });
-          // Crowd cheers for the whole reveal+running animation (louder for winners).
-          const cheerMs = BALL_TOTAL_MS - BALL_PEAK_MS + RUN_MS;
-          playCheer(cheerMs, incomingRef.current.player.isWinner ? 1.6 : 1);
+          // Vuvuzela fanfare over the ambient crowd — winners only.
+          if (incomingRef.current.player.isWinner) playVuvuzelas();
         }
       }, BALL_PEAK_MS);
       const t2 = setTimeout(() => dispatch({ type: "SET_PHASE", phase: "RUNNING" }), BALL_TOTAL_MS);
@@ -65,12 +69,48 @@ export default function App() {
       return () => clearTimeout(t);
     }
     if (state.phase === "BANNER") {
+      // Winners' banner (and confetti) linger 50% longer.
+      const last = state.players.find((p) => p.id === state.lastAddedId);
+      const bannerMs = last?.isWinner ? Math.round(BANNER_MS * 1.5) : BANNER_MS;
       const t = setTimeout(() => {
         dispatch({ type: "CLEAR_LAST" });
         dispatch({ type: "SET_PHASE", phase: "NAME_ENTRY" });
-      }, BANNER_MS);
+      }, bannerMs);
       return () => clearTimeout(t);
     }
+  }, [state.phase]);
+
+  // Idle showcase: after IDLE_MS with no name entered, re-run the runner
+  // animation on a random player, repeating until a new name is entered.
+  useEffect(() => {
+    if (state.phase !== "NAME_ENTRY") return;
+    let stopped = false;
+    const timers: number[] = [];
+    const later = (fn: () => void, ms: number) => {
+      timers.push(window.setTimeout(fn, ms));
+    };
+
+    const runRandom = () => {
+      if (stopped) return;
+      const players = playersRef.current;
+      if (players.length === 0) {
+        later(runRandom, 3000); // nobody to animate yet — check again later
+        return;
+      }
+      const pick = players[Math.floor(Math.random() * players.length)];
+      setIdleRunningId(pick.id);
+      later(() => {
+        setIdleRunningId(null);
+        later(runRandom, 1200); // brief pause, then animate another
+      }, RUN_MS);
+    };
+
+    later(runRandom, IDLE_MS); // wait out the inactive window first
+    return () => {
+      stopped = true;
+      timers.forEach((id) => window.clearTimeout(id));
+      setIdleRunningId(null);
+    };
   }, [state.phase]);
 
   function handleSubmit(name: string) {
@@ -103,7 +143,10 @@ export default function App() {
               className={`slot ${isLast ? "slot-active" : ""}`}
               style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
             >
-              <PlayerSprite player={p} running={isLast && state.phase === "RUNNING"} />
+              <PlayerSprite
+                player={p}
+                running={(isLast && state.phase === "RUNNING") || p.id === idleRunningId}
+              />
             </div>
           );
         })}

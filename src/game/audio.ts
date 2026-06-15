@@ -1,32 +1,37 @@
-// A self-contained stadium roar, synthesised with the Web Audio API (no audio
-// assets shipped). It uses *pink* noise (a warm, natural "wash" rather than the
-// hissy white noise) shaped into a low-mid crowd roar, with a rising onset and
-// slow surges so it sounds like a real crowd rather than static.
+// Audio has two parts, both from real recorded samples (no tone generators):
+//  1. A continuous football-crowd roar looped as the background bed (started on
+//     the first user gesture, runs for the whole session).
+//  2. A vuvuzela fanfare — only when a WINNER is added. The real vuvuzela blast
+//     is played at native pitch as a few overlapping honks in two waves.
+//
+// Samples (see CREDITS.md):
+//  - crowd.ogg     — "Free Crowd Cheering Sounds" by Gregor Quendel, CC BY 4.0
+//  - vuvuzela.ogg  — "VUVUZELA 2" by Audioflow (Freesound), CC0
+
+import crowdUrl from "../assets/crowd.ogg";
+import vuvuzelaUrl from "../assets/vuvuzela.ogg";
 
 let ctx: AudioContext | null = null;
-let pink: AudioBuffer | null = null;
+let master: DynamicsCompressorNode | null = null; // soft limiter so layers don't clip
+let ambientStarted = false;
 
-// Pink noise via Paul Kellet's refined method — warmer & less hissy than white.
-function makePinkNoise(c: AudioContext): AudioBuffer {
-  const len = Math.floor(c.sampleRate * 4);
-  const buf = c.createBuffer(1, len, c.sampleRate);
-  const d = buf.getChannelData(0);
-  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-  for (let i = 0; i < len; i++) {
-    const w = Math.random() * 2 - 1;
-    b0 = 0.99886 * b0 + w * 0.0555179;
-    b1 = 0.99332 * b1 + w * 0.0750759;
-    b2 = 0.969 * b2 + w * 0.153852;
-    b3 = 0.8665 * b3 + w * 0.3104856;
-    b4 = 0.55 * b4 + w * 0.5329522;
-    b5 = -0.7616 * b5 - w * 0.016898;
-    d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
-    b6 = w * 0.115926;
-  }
-  return buf;
+let crowdBuffer: AudioBuffer | null = null;
+let vuvBuffer: AudioBuffer | null = null;
+
+function loadSample(c: AudioContext, url: string, set: (b: AudioBuffer) => void): Promise<void> {
+  return fetch(url)
+    .then((r) => r.arrayBuffer())
+    .then((ab) => c.decodeAudioData(ab))
+    .then(set)
+    .catch(() => {
+      /* if a sample fails to load, that layer simply won't play */
+    });
 }
 
-/** Call from a user gesture (e.g. pressing Enter) so the browser allows audio. */
+/**
+ * Call from a user gesture (e.g. pressing Enter). Creates/resumes the audio
+ * engine, loads the samples, and starts the looping crowd bed.
+ */
 export function initAudio(): void {
   if (!ctx) {
     const AC =
@@ -34,63 +39,65 @@ export function initAudio(): void {
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     ctx = new AC();
-    pink = makePinkNoise(ctx);
+    master = ctx.createDynamicsCompressor();
+    master.threshold.value = -10;
+    master.knee.value = 20;
+    master.ratio.value = 4;
+    master.attack.value = 0.01;
+    master.release.value = 0.25;
+    master.connect(ctx.destination);
+
+    loadSample(ctx, crowdUrl, (b) => {
+      crowdBuffer = b;
+      startAmbientCrowd();
+    });
+    loadSample(ctx, vuvuzelaUrl, (b) => {
+      vuvBuffer = b;
+    });
   }
   if (ctx.state === "suspended") void ctx.resume();
+  startAmbientCrowd();
 }
 
-/** Play a stadium roar for `durationMs`. intensity > 1 = louder (winners). */
-export function playCheer(durationMs = 4500, intensity = 1): void {
-  if (!ctx || !pink) return;
+// Loop the recorded crowd roar as the background bed (its own dynamics provide
+// the natural swell/dissipation of a live match).
+function startAmbientCrowd(): void {
+  if (!ctx || !master || !crowdBuffer || ambientStarted) return;
+  ambientStarted = true;
   const now = ctx.currentTime;
-  const dur = Math.max(1, durationMs / 1000);
-  const peak = Math.min(0.5, 0.32 * intensity);
-  const stopAt = now + dur + 0.2;
 
-  // Master envelope: quick eruption, sustained roar, gentle fade.
-  const master = ctx.createGain();
-  master.gain.setValueAtTime(0.0001, now);
-  master.gain.exponentialRampToValueAtTime(peak, now + 0.4); // crowd erupts
-  master.gain.setValueAtTime(peak, now + Math.max(0.6, dur - 1.4)); // hold
-  master.gain.exponentialRampToValueAtTime(0.0001, now + dur); // dies down
-  master.connect(ctx.destination);
+  const src = ctx.createBufferSource();
+  src.buffer = crowdBuffer;
+  src.loop = true;
 
-  // Body — the main roar. Lowpass tamed (kills hiss); rises on the onset.
-  const body = ctx.createBufferSource();
-  body.buffer = pink;
-  body.loop = true;
-  const bodyLP = ctx.createBiquadFilter();
-  bodyLP.type = "lowpass";
-  bodyLP.Q.value = 0.4;
-  bodyLP.frequency.setValueAtTime(700, now);
-  bodyLP.frequency.exponentialRampToValueAtTime(2100, now + 0.5); // cheer rises
-  const bodyGain = ctx.createGain();
-  bodyGain.gain.value = 0.9;
-  body.connect(bodyLP).connect(bodyGain).connect(master);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.5, now + 2.5); // ease the crowd in
 
-  // Rumble — pitched-down layer for low-end weight.
-  const rumble = ctx.createBufferSource();
-  rumble.buffer = pink;
-  rumble.loop = true;
-  rumble.playbackRate.value = 0.7;
-  const rumbleLP = ctx.createBiquadFilter();
-  rumbleLP.type = "lowpass";
-  rumbleLP.frequency.value = 500;
-  const rumbleGain = ctx.createGain();
-  rumbleGain.gain.value = 0.5;
-  rumble.connect(rumbleLP).connect(rumbleGain).connect(master);
+  src.connect(gain).connect(master);
+  src.start(now);
+  // Never stopped — the crowd bed runs for the whole session.
+}
 
-  // Slow surges so the crowd swells rather than sitting static.
-  const surge = ctx.createOscillator();
-  surge.frequency.value = 0.45;
-  const surgeGain = ctx.createGain();
-  surgeGain.gain.value = 0.12;
-  surge.connect(surgeGain).connect(bodyGain.gain);
+// One vuvuzela honk: the recorded blast played once at its native pitch.
+function vuvuzelaHonk(startOffset: number, gain: number): void {
+  if (!ctx || !master || !vuvBuffer) return;
+  const src = ctx.createBufferSource();
+  src.buffer = vuvBuffer;
+  const g = ctx.createGain();
+  g.gain.value = gain;
+  src.connect(g).connect(master);
+  src.start(ctx.currentTime + startOffset);
+}
 
-  body.start(now);
-  body.stop(stopAt);
-  rumble.start(now);
-  rumble.stop(stopAt);
-  surge.start(now);
-  surge.stop(stopAt);
+/**
+ * Winner fanfare: a few real vuvuzela honks at native pitch, overlapping in two
+ * waves so it sounds like a handful of fans blowing — not a synthetic tone.
+ */
+export function playVuvuzelas(): void {
+  if (!ctx || !master || !vuvBuffer) return;
+  vuvuzelaHonk(0.0, 0.55);
+  vuvuzelaHonk(0.35, 0.4); // a second horn overlapping the first
+  vuvuzelaHonk(2.4, 0.55); // second wave
+  vuvuzelaHonk(2.75, 0.4);
 }

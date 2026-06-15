@@ -7,7 +7,7 @@ import { TEAM_COLORS } from "../game/teams";
 
 // Confetti raining from the top of the screen.
 function rainConfetti() {
-  const end = Date.now() + 2500;
+  const end = Date.now() + 3750; // 50% longer for the winner celebration
   const colors = ["#FFD700", "#FF4D4D", "#4D9BFF", "#4DFF88", "#FFFFFF"];
   (function frame() {
     confetti({

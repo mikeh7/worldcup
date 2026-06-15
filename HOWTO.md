@@ -133,6 +133,10 @@ transitions.
 - `AnimatePresence` animates components *out* as they're removed — that's how the
   banner gracefully exits.
 
+When the prompt sits idle for 20s with no name entered, an **idle showcase**
+(driven by timers in `src/App.tsx`) re-runs the runner animation on random
+players until someone types a name again.
+
 ### canvas-confetti (`canvas-confetti`)
 
 **What it is:** a tiny, single-purpose library that draws confetti particles on an
@@ -165,19 +169,28 @@ per player — no need for dozens of pre-made images.
 
 ---
 
-## 6. Sound — the Web Audio API (no library)
+## 6. Sound — the Web Audio API + recorded samples
 
-The crowd cheer uses no audio library and no sound file. It's synthesised live
-with the browser's built-in **Web Audio API** (`src/game/audio.ts`).
+All sound is played through the browser's built-in **Web Audio API**
+(`src/game/audio.ts`), which lets you build a signal chain from "nodes" (sample
+players, gains, a compressor). Two real recorded samples drive it (both bundled
+as `.ogg`, see `CREDITS.md`):
 
-**How it works:** it generates **pink noise** (a warm, natural-sounding random
-signal) and runs it through audio "nodes" — filters that shape it into a low-mid
-crowd roar, a gain envelope that makes it swell up and fade, and a slow oscillator
-that adds crowd "surges". It's essentially a tiny synthesizer.
+**Ambient crowd (always running).** A real **football-crowd recording**
+(`src/assets/crowd.ogg`, CC BY 4.0) is decoded once and played on an endless
+**loop** as the background bed. The recording's own dynamics provide the natural
+swell and dissipation of a live match. It starts on the first interaction and runs
+for the whole session.
 
-**Why no file:** shipping no audio asset keeps the app tiny and fully
-offline-capable. (The trade-off is it's a convincing *synthesised* roar, not a
-literal recording — a real `.mp3` could be swapped in if desired.)
+**Vuvuzela fanfare (winners only).** When a **winner** lands, a real **vuvuzela
+blast** (`src/assets/vuvuzela.ogg`, CC0) is played at its native pitch as a few
+overlapping honks in two waves — so it sounds like a handful of fans blowing,
+not a synthetic tone. (Non-winners just get the crowd.) Everything runs through a
+compressor that acts as a soft limiter so the layers don't clip.
+
+**Bundling the samples:** each `.ogg` is `import`ed in `audio.ts`, so Vite
+fingerprints it and hands back a relative URL that works under the GitHub Pages
+sub-path; the code `fetch`es and decodes it at startup.
 
 One browser rule worth knowing: browsers **block audio until the user interacts**
 with the page. That's why the sound "unlocks" on the first Enter keypress.
